@@ -71,6 +71,14 @@
         <!-- Dashboard View -->
         <div id="view-dashboard" class="space-y-6">
             
+            <!-- Dashboard Header mit Filter -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
+                <h2 class="text-2xl font-bold text-slate-800">Ihre Finanzen</h2>
+                <select id="monthFilter" onchange="changeMonthFilter(this.value)" class="bg-white border border-slate-300 text-slate-700 py-2 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[200px]">
+                    <option value="all">Alle Zeiträume</option>
+                </select>
+            </div>
+
             <!-- KPIs -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
@@ -127,13 +135,14 @@
                 
                 <!-- Category Averages -->
                 <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col h-full">
-                    <h3 class="text-lg font-bold text-slate-800 mb-4">Ø Ausgaben pro Kategorie (Monat)</h3>
+                    <h3 class="text-lg font-bold text-slate-800 mb-4">Ausgaben pro Kategorie</h3>
                     <div class="overflow-y-auto flex-grow h-64 border border-slate-100 rounded-lg">
                         <table class="min-w-full divide-y divide-slate-200 text-sm">
                             <thead class="bg-slate-50 sticky top-0">
                                 <tr>
                                     <th class="px-4 py-3 text-left font-medium text-slate-500">Kategorie</th>
-                                    <th class="px-4 py-3 text-right font-medium text-slate-500">Ø Betrag</th>
+                                    <th class="px-4 py-3 text-right font-medium text-slate-500">Total</th>
+                                    <th class="px-4 py-3 text-right font-medium text-slate-500">Ø Monat</th>
                                 </tr>
                             </thead>
                             <tbody id="avg-category-tbody" class="bg-white divide-y divide-slate-100">
@@ -158,6 +167,7 @@
                                     <th class="px-4 py-3 text-left font-medium text-slate-500">Datum</th>
                                     <th class="px-4 py-3 text-left font-medium text-slate-500">Händler</th>
                                     <th class="px-4 py-3 text-right font-medium text-slate-500">Betrag</th>
+                                    <th class="px-4 py-3 text-right font-medium text-slate-500"></th>
                                 </tr>
                             </thead>
                             <tbody id="transactions-tbody" class="bg-white divide-y divide-slate-100">
@@ -228,6 +238,7 @@
         let currentUser = null;
         let db = null;
         let transactions = [];
+        let currentMonthFilter = 'all';
 
         // Tab Switching Logic
         window.switchTab = function(tabName) {
@@ -380,6 +391,30 @@
         });
 
         // Update Dashboard UI
+        window.changeMonthFilter = function(val) {
+            currentMonthFilter = val;
+            updateDashboard();
+        };
+
+        window.deleteTransaction = async function(id) {
+            if (!currentUser || !db) return;
+            if (confirm("Möchten Sie diese Transaktion wirklich löschen? (Tipp: Praktisch, wenn Sie Geld zurückerhalten haben)")) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions', id));
+                } catch (error) {
+                    console.error("Fehler beim Löschen:", error);
+                }
+            }
+        };
+
+        function getMonthKey(dateStr) {
+            const parts = dateStr.split('.');
+            if (parts.length === 3) {
+                return `${parts[2]}-${parts[1]}`;
+            }
+            return 'unknown';
+        }
+
         function updateDashboard() {
             if (transactions.length === 0) {
                 document.getElementById('transactions-tbody').innerHTML = '';
@@ -396,15 +431,42 @@
             
             document.getElementById('empty-state').classList.add('hidden');
 
+            // 1. Berechne Daten für den Gesamt-Trend (Alle Monate für Bar-Chart & Dropdown)
+            const globalMonthMap = {};
+            transactions.forEach(t => {
+                const mKey = getMonthKey(t.datum);
+                if (mKey !== 'unknown') {
+                    if(!globalMonthMap[mKey]) globalMonthMap[mKey] = 0;
+                    globalMonthMap[mKey] += t.betrag;
+                }
+            });
+
+            // 2. Dropdown-Optionen aktualisieren
+            const filterSelect = document.getElementById('monthFilter');
+            if (filterSelect) {
+                const months = Object.keys(globalMonthMap).sort().reverse();
+                let optionsHtml = '<option value="all">Alle Zeiträume</option>';
+                months.forEach(m => {
+                    const display = `${m.split('-')[1]}.${m.split('-')[0]}`;
+                    const selected = currentMonthFilter === m ? 'selected' : '';
+                    optionsHtml += `<option value="${m}" ${selected}>${display}</option>`;
+                });
+                filterSelect.innerHTML = optionsHtml;
+            }
+
+            // 3. Transaktionen anhand des Filters auswählen
+            const displayTransactions = currentMonthFilter === 'all' 
+                ? transactions 
+                : transactions.filter(t => getMonthKey(t.datum) === currentMonthFilter);
+
             let totalExpense = 0;
             const categorySums = {};
-            const monthMap = {};
 
             // Table UI
             const tbody = document.getElementById('transactions-tbody');
             tbody.innerHTML = '';
 
-            transactions.forEach((t, index) => {
+            displayTransactions.forEach((t, index) => {
                 totalExpense += t.betrag;
                 
                 // Aggregate for chart
@@ -414,18 +476,10 @@
                     categorySums[t.kategorie] = t.betrag;
                 }
                 
-                // Aggregate by month (YYYY-MM)
-                const parts = t.datum.split('.');
-                if(parts.length === 3) {
-                    const monthKey = `${parts[2]}-${parts[1]}`;
-                    if(!monthMap[monthKey]) monthMap[monthKey] = 0;
-                    monthMap[monthKey] += t.betrag;
-                }
-
-                // Add to table (show only latest 50 for performance)
-                if (index < 50) {
+                // Add to table (show only latest 100 for performance)
+                if (index < 100) {
                     const tr = document.createElement('tr');
-                    tr.className = "hover:bg-slate-50 transition-colors";
+                    tr.className = "hover:bg-slate-50 transition-colors group";
                     tr.innerHTML = `
                         <td class="px-4 py-3 whitespace-nowrap text-slate-600">${t.datum}</td>
                         <td class="px-4 py-3 text-slate-800 font-medium">
@@ -433,18 +487,23 @@
                             <div class="text-xs text-slate-400 font-normal">${t.kategorie}</div>
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap text-right font-bold text-slate-800">CHF ${t.betrag.toFixed(2)}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            <button onclick="deleteTransaction('${t.id}')" class="text-slate-300 hover:text-danger transition-colors opacity-0 group-hover:opacity-100" title="Transaktion löschen">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </td>
                     `;
                     tbody.appendChild(tr);
                 }
             });
             
-            // Calculate Months for Averages
-            const uniqueMonths = Object.keys(monthMap).length || 1;
+            // Calculate Months for Averages (dynamisch basierend auf Filter)
+            const uniqueMonths = currentMonthFilter === 'all' ? (Object.keys(globalMonthMap).length || 1) : 1;
 
             // Update KPIs
             document.getElementById('kpi-total').textContent = `CHF ${totalExpense.toFixed(2)}`;
             document.getElementById('kpi-avg-month').textContent = `CHF ${(totalExpense / uniqueMonths).toFixed(2)}`;
-            document.getElementById('kpi-count').textContent = transactions.length;
+            document.getElementById('kpi-count').textContent = displayTransactions.length;
 
             // Find top category
             let topCat = '-';
@@ -470,14 +529,15 @@
                 tr.className = "hover:bg-slate-50 transition-colors";
                 tr.innerHTML = `
                     <td class="px-4 py-3 text-slate-800 font-medium">${cat}</td>
-                    <td class="px-4 py-3 whitespace-nowrap text-right font-bold text-slate-800">CHF ${avg.toFixed(2)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right font-bold text-slate-800">CHF ${total.toFixed(2)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-slate-500">CHF ${avg.toFixed(2)}</td>
                 `;
                 avgTbody.appendChild(tr);
             });
 
-            // Update Charts
+            // Update Charts (Ringdiagramm mit aktuellen Filterdaten, Trenddiagramm mit globalen Daten)
             updateChart(categorySums);
-            updateTrendChart(monthMap);
+            updateTrendChart(globalMonthMap);
         }
 
         function updateChart(categorySums) {
