@@ -32,6 +32,8 @@
         .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
         .tab-inactive { color: #64748b; }
         .tab-inactive:hover { color: #334155; }
+        .import-tab-active { background-color: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+        .import-tab-inactive { background-color: #f8fafc; color: #64748b; border-color: #e2e8f0; }
     </style>
 </head>
 <body class="text-slate-800">
@@ -66,7 +68,7 @@
                     <i class="fa-solid fa-list mr-2"></i> Alle Transaktionen
                 </button>
                 <button onclick="switchTab('upload')" id="tab-upload" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
-                    <i class="fa-solid fa-file-csv mr-2"></i> CSV Importieren
+                    <i class="fa-solid fa-file-import mr-2"></i> CSV Importieren
                 </button>
             </nav>
         </div>
@@ -223,24 +225,49 @@
 
         <!-- Upload View -->
         <div id="view-upload" class="hidden">
-            <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-8 max-w-2xl mx-auto">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-8 max-w-3xl mx-auto">
                 <div class="text-center mb-8">
-                    <h2 class="text-2xl font-bold text-slate-800">CSV-Datei importieren</h2>
-                    <p class="text-slate-500 mt-2">Laden Sie die von Gemini generierte CSV-Datei hoch, um Ihre Ausgaben zu analysieren.</p>
+                    <h2 class="text-2xl font-bold text-slate-800">CSV-Daten importieren</h2>
+                    <p class="text-slate-500 mt-2">Wählen Sie, wie Sie die von der KI generierten CSV-Daten einfügen möchten.</p>
                 </div>
                 
-                <div class="border-2 border-dashed border-slate-300 rounded-xl p-12 text-center hover:bg-slate-50 transition-colors relative">
-                    <input type="file" id="csv-file" accept=".csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                    <i class="fa-solid fa-cloud-arrow-up text-5xl text-primary mb-4"></i>
-                    <p class="text-lg font-medium text-slate-700">Klicken oder Datei hier ablegen</p>
-                    <p class="text-sm text-slate-500 mt-1">Nur .csv Dateien (Trennzeichen: Semikolon)</p>
+                <!-- Import Method Toggle -->
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <button onclick="switchImportMethod('text')" id="btn-import-text" class="import-tab-active border rounded-lg py-3 px-4 text-sm font-medium flex flex-col items-center justify-center gap-2 transition-colors">
+                        <i class="fa-solid fa-paste text-xl"></i> Text einfügen
+                    </button>
+                    <button onclick="switchImportMethod('file')" id="btn-import-file" class="import-tab-inactive border rounded-lg py-3 px-4 text-sm font-medium flex flex-col items-center justify-center gap-2 transition-colors">
+                        <i class="fa-solid fa-file-upload text-xl"></i> Datei hochladen
+                    </button>
+                </div>
+
+                <!-- Text Input Area -->
+                <div id="import-area-text" class="block">
+                    <div class="mb-4">
+                        <label for="csv-text" class="block text-sm font-medium text-slate-700 mb-2">CSV-Text hier einfügen (Strg+V)</label>
+                        <textarea id="csv-text" rows="10" class="w-full border border-slate-300 rounded-lg shadow-sm focus:ring-primary focus:border-primary sm:text-sm p-4 font-mono text-slate-600" placeholder="Datum;Händler / Verwendungszweck;Betrag (CHF);Kategorie;Typ&#10;18.03.2026;Saldovortrag letzte Rechnung;1287.60;Zahlungen & Finanzen;Saldovortrag&#10;..."></textarea>
+                    </div>
+                    <button onclick="processTextCSV()" class="w-full bg-primary hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex justify-center items-center gap-2">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Daten importieren
+                    </button>
                 </div>
                 
+                <!-- File Input Area -->
+                <div id="import-area-file" class="hidden">
+                    <div class="border-2 border-dashed border-slate-300 rounded-xl p-12 text-center hover:bg-slate-50 transition-colors relative">
+                        <input type="file" id="csv-file" accept=".csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <i class="fa-solid fa-file-csv text-5xl text-primary mb-4"></i>
+                        <p class="text-lg font-medium text-slate-700">Klicken oder Datei hier ablegen</p>
+                        <p class="text-sm text-slate-500 mt-1">Nur .csv Dateien (Trennzeichen: Semikolon)</p>
+                    </div>
+                </div>
+                
+                <!-- Status Message -->
                 <div id="upload-status" class="mt-6 hidden">
                     <div class="p-4 rounded-lg bg-blue-50 text-blue-700 flex items-start">
                         <i class="fa-solid fa-circle-info mt-1 mr-3"></i>
                         <div>
-                            <p class="font-medium" id="upload-status-title">Verarbeite Datei...</p>
+                            <p class="font-medium" id="upload-status-title">Verarbeite Daten...</p>
                             <p class="text-sm mt-1" id="upload-status-msg"></p>
                         </div>
                     </div>
@@ -297,6 +324,25 @@
             } else if (tabName === 'transactions') {
                 updateTransactionsView();
             }
+            
+            // Hide status when entering upload tab
+            if (tabName === 'upload') {
+                document.getElementById('upload-status').classList.add('hidden');
+            }
+        };
+
+        window.switchImportMethod = function(method) {
+            const methods = ['text', 'file'];
+            methods.forEach(m => {
+                document.getElementById(`import-area-${m}`).classList.add('hidden');
+                document.getElementById(`btn-import-${m}`).className = 'import-tab-inactive border rounded-lg py-3 px-4 text-sm font-medium flex flex-col items-center justify-center gap-2 transition-colors';
+            });
+            
+            document.getElementById(`import-area-${method}`).classList.remove('hidden');
+            document.getElementById(`import-area-${method}`).classList.add('block');
+            document.getElementById(`btn-import-${method}`).className = 'import-tab-active border rounded-lg py-3 px-4 text-sm font-medium flex flex-col items-center justify-center gap-2 transition-colors';
+            
+            document.getElementById('upload-status').classList.add('hidden');
         };
 
         // Initialize Firebase
@@ -357,7 +403,74 @@
             });
         }
 
-        // CSV Parsing Logic
+        // --- Core Import Logic ---
+        async function performImport(dataArray, statusDiv, statusTitle, statusMsg) {
+            if (!currentUser || !db) {
+                statusDiv.className = 'mt-6 p-4 rounded-lg bg-red-50 text-red-700 flex items-start';
+                statusTitle.textContent = 'Fehler';
+                statusMsg.textContent = 'Keine Verbindung zur Cloud-Datenbank.';
+                return;
+            }
+
+            try {
+                const transRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions');
+                
+                // Create a Set of existing transactions to prevent duplicates
+                const existingHashes = new Set(transactions.map(t => `${t.datum}-${t.haendler}-${t.betrag}`));
+                let importedCount = 0;
+                
+                for (const row of dataArray) {
+                    // Only import valid expense rows
+                    if (row['Datum'] && row['Betrag (CHF)'] && row['Typ'] === 'Ausgabe') {
+                        const amount = parseFloat(row['Betrag (CHF)']);
+                        const merchant = row['Händler / Verwendungszweck'] || 'Unbekannt';
+                        const hash = `${row['Datum']}-${merchant}-${amount}`;
+                        
+                        if (!isNaN(amount) && !existingHashes.has(hash)) {
+                            await addDoc(transRef, {
+                                datum: row['Datum'],
+                                haendler: merchant,
+                                betrag: amount,
+                                kategorie: row['Kategorie'] || 'Sonstiges',
+                                typ: row['Typ'],
+                                importDate: new Date().toISOString()
+                            });
+                            importedCount++;
+                            existingHashes.add(hash); // Add to set to prevent duplicates within same file/text
+                        }
+                    }
+                }
+                
+                statusDiv.className = 'mt-6 p-4 rounded-lg bg-green-50 text-green-700 flex items-start';
+                statusTitle.textContent = 'Import Erfolgreich!';
+                if (importedCount > 0) {
+                    statusMsg.textContent = `${importedCount} neue Ausgaben wurden erfolgreich importiert (Duplikate wurden übersprungen).`;
+                } else {
+                    statusMsg.textContent = `Es wurden keine neuen Ausgaben gefunden. Alle Einträge existieren bereits in der Datenbank.`;
+                }
+                
+            } catch (error) {
+                console.error("Error saving to db:", error);
+                statusDiv.className = 'mt-6 p-4 rounded-lg bg-red-50 text-red-700 flex items-start';
+                statusTitle.textContent = 'Speicherfehler';
+                statusMsg.textContent = 'Die Daten konnten nicht in der Cloud gespeichert werden.';
+            }
+        }
+
+        function setStatusLoading(statusDiv, statusTitle, statusMsg) {
+            statusDiv.classList.remove('hidden');
+            statusDiv.className = 'mt-6 p-4 rounded-lg bg-blue-50 text-blue-700 flex items-start';
+            statusTitle.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Verarbeite Daten...';
+            statusMsg.textContent = 'Bitte warten Sie einen Moment.';
+        }
+
+        function handleParseError(statusDiv, statusTitle, statusMsg) {
+            statusDiv.className = 'mt-6 p-4 rounded-lg bg-red-50 text-red-700 flex items-start';
+            statusTitle.textContent = 'Formatfehler';
+            statusMsg.textContent = 'Die CSV-Daten konnten nicht gelesen werden. Bitte prüfen Sie das Format (Semikolon als Trennzeichen).';
+        }
+
+        // Method 1: File Parsing
         document.getElementById('csv-file').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -366,74 +479,52 @@
             const statusTitle = document.getElementById('upload-status-title');
             const statusMsg = document.getElementById('upload-status-msg');
             
-            statusDiv.classList.remove('hidden');
-            statusDiv.className = 'mt-6 p-4 rounded-lg bg-blue-50 text-blue-700 flex items-start';
-            statusTitle.textContent = 'Verarbeite Datei...';
-            statusMsg.textContent = 'Bitte warten Sie einen Moment.';
+            setStatusLoading(statusDiv, statusTitle, statusMsg);
 
             Papa.parse(file, {
                 header: true,
                 delimiter: ";", // Semi-colon as requested
                 skipEmptyLines: true,
                 complete: async function(results) {
-                    let importedCount = 0;
-                    const data = results.data;
-                    
-                    if (!currentUser || !db) {
-                        statusDiv.className = 'mt-6 p-4 rounded-lg bg-red-50 text-red-700 flex items-start';
-                        statusTitle.textContent = 'Fehler';
-                        statusMsg.textContent = 'Keine Verbindung zur Cloud-Datenbank.';
-                        return;
-                    }
-
-                    try {
-                        const transRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions');
-                        
-                        // Create a Set of existing transactions to prevent duplicates
-                        const existingHashes = new Set(transactions.map(t => `${t.datum}-${t.haendler}-${t.betrag}`));
-                        
-                        for (const row of data) {
-                            // Only import valid expense rows
-                            if (row['Datum'] && row['Betrag (CHF)'] && row['Typ'] === 'Ausgabe') {
-                                const amount = parseFloat(row['Betrag (CHF)']);
-                                const merchant = row['Händler / Verwendungszweck'] || 'Unbekannt';
-                                const hash = `${row['Datum']}-${merchant}-${amount}`;
-                                
-                                if (!isNaN(amount) && !existingHashes.has(hash)) {
-                                    await addDoc(transRef, {
-                                        datum: row['Datum'],
-                                        haendler: merchant,
-                                        betrag: amount,
-                                        kategorie: row['Kategorie'] || 'Sonstiges',
-                                        typ: row['Typ'],
-                                        importDate: new Date().toISOString()
-                                    });
-                                    importedCount++;
-                                    existingHashes.add(hash); // Add to set to prevent duplicates within same file
-                                }
-                            }
-                        }
-                        
-                        statusDiv.className = 'mt-6 p-4 rounded-lg bg-green-50 text-green-700 flex items-start';
-                        statusTitle.textContent = 'Import Erfolgreich!';
-                        statusMsg.textContent = `${importedCount} neue Ausgaben wurden erfolgreich importiert (Duplikate wurden übersprungen).`;
-                    } catch (error) {
-                        console.error("Error saving to db:", error);
-                        statusDiv.className = 'mt-6 p-4 rounded-lg bg-red-50 text-red-700 flex items-start';
-                        statusTitle.textContent = 'Speicherfehler';
-                        statusMsg.textContent = 'Die Daten konnten nicht gespeichert werden.';
-                    }
-                    
-                    // Reset input
-                    e.target.value = '';
+                    await performImport(results.data, statusDiv, statusTitle, statusMsg);
+                    e.target.value = ''; // Reset input
                 },
                 error: function(error) {
-                    statusDiv.className = 'mt-6 p-4 rounded-lg bg-red-50 text-red-700 flex items-start';
-                    statusTitle.textContent = 'Formatfehler';
-                    statusMsg.textContent = 'Die CSV-Datei konnte nicht gelesen werden. Bitte prüfen Sie das Format.';
+                    handleParseError(statusDiv, statusTitle, statusMsg);
                 }
             });
         });
+
+        // Method 2: Text Parsing
+        window.processTextCSV = function() {
+            const textInput = document.getElementById('csv-text').value.trim();
+            const statusDiv = document.getElementById('upload-status');
+            const statusTitle = document.getElementById('upload-status-title');
+            const statusMsg = document.getElementById('upload-status-msg');
+            
+            if (!textInput) {
+                statusDiv.classList.remove('hidden');
+                statusDiv.className = 'mt-6 p-4 rounded-lg bg-amber-50 text-amber-700 flex items-start';
+                statusTitle.textContent = 'Achtung';
+                statusMsg.textContent = 'Bitte fügen Sie zuerst CSV-Text in das Feld ein.';
+                return;
+            }
+
+            setStatusLoading(statusDiv, statusTitle, statusMsg);
+
+            Papa.parse(textInput, {
+                header: true,
+                delimiter: ";",
+                skipEmptyLines: true,
+                complete: async function(results) {
+                    await performImport(results.data, statusDiv, statusTitle, statusMsg);
+                    document.getElementById('csv-text').value = ''; // Clear text area on success attempt
+                },
+                error: function(error) {
+                    handleParseError(statusDiv, statusTitle, statusMsg);
+                }
+            });
+        };
 
         // Update UI Logic
         window.changeMonthFilter = function(val) {
