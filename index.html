@@ -206,12 +206,19 @@
     <!-- Firebase SDK (ES Modules) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Environment variables provided by the Canvas preview platform
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'finanz-tracker';
+        // Ihre echten Firebase Zugangsdaten
+        const firebaseConfig = {
+            apiKey: "AIzaSyABStg7Hc0RJlbGDc2AZ0lghMsD0RIjs3M",
+            authDomain: "finanzen-3d48e.firebaseapp.com",
+            projectId: "finanzen-3d48e",
+            storageBucket: "finanzen-3d48e.firebasestorage.app",
+            messagingSenderId: "159784512921",
+            appId: "1:159784512921:web:c7d291ba52d0b65324f708"
+        };
+        const appId = 'finanzen-3d48e';
         
         // Chart Instance
         let categoryChartInstance = null;
@@ -249,11 +256,9 @@
             db = getFirestore(app);
 
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                // Da Sie Ihre eigene Firebase-Datenbank einbinden, überspringen wir das 
+                // vorgegebene Token-System und melden uns direkt anonym bei Ihrem Projekt an.
+                await signInAnonymously(auth);
             } catch (error) {
                 console.error("Auth error:", error);
                 document.getElementById('auth-status').innerHTML = '<span class="text-red-500">Authentifizierungsfehler</span>';
