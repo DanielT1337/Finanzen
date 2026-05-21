@@ -380,7 +380,7 @@
         function loadDataFromCloud() {
             if (!currentUser || !db) return;
             
-            const transRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions');
+            const transRef = collection(db, 'artifacts', appId, 'public', 'data', 'transactions');
             
             // Listen to real-time changes
             onSnapshot(transRef, (snapshot) => {
@@ -413,7 +413,7 @@
             }
 
             try {
-                const transRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions');
+                const transRef = collection(db, 'artifacts', appId, 'public', 'data', 'transactions');
                 
                 // Create a Set of existing transactions to prevent duplicates
                 const existingHashes = new Set(transactions.map(t => `${t.datum}-${t.haendler}-${t.betrag}`));
@@ -541,7 +541,7 @@
             if (!currentUser || !db) return;
             if (confirm("Möchten Sie diese Transaktion wirklich löschen? (Tipp: Praktisch, wenn Sie Geld zurückerhalten haben)")) {
                 try {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions', id));
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', id));
                 } catch (error) {
                     console.error("Fehler beim Löschen:", error);
                 }
@@ -870,10 +870,10 @@
             if (!currentUser || !db) return;
             if (confirm("Möchten Sie wirklich alle importierten Daten löschen?")) {
                 try {
-                    const transRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions');
+                    const transRef = collection(db, 'artifacts', appId, 'public', 'data', 'transactions');
                     // In a production app, batch delete is better. For this prototype, we'll delete one by one.
                     for (const t of transactions) {
-                        await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions', t.id));
+                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'transactions', t.id));
                     }
                 } catch (error) {
                     console.error("Fehler beim Löschen:", error);
