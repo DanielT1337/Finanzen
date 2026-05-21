@@ -62,6 +62,9 @@
                 <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
                     <i class="fa-solid fa-chart-pie mr-2"></i> Übersicht
                 </button>
+                <button onclick="switchTab('transactions')" id="tab-transactions" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                    <i class="fa-solid fa-list mr-2"></i> Alle Transaktionen
+                </button>
                 <button onclick="switchTab('upload')" id="tab-upload" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
                     <i class="fa-solid fa-file-csv mr-2"></i> CSV Importieren
                 </button>
@@ -184,6 +187,40 @@
             </div>
         </div>
 
+        <!-- Transactions View -->
+        <div id="view-transactions" class="hidden space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
+                <h2 class="text-2xl font-bold text-slate-800">Alle Transaktionen</h2>
+                <select id="categoryFilter" onchange="changeCategoryFilter(this.value)" class="bg-white border border-slate-300 text-slate-700 py-2 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[200px]">
+                    <option value="all">Alle Kategorien</option>
+                </select>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col h-[700px]">
+                <div class="overflow-y-auto flex-grow border border-slate-100 rounded-lg relative">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-4 py-3 text-left font-medium text-slate-500">Datum</th>
+                                <th class="px-4 py-3 text-left font-medium text-slate-500">Händler</th>
+                                <th class="px-4 py-3 text-left font-medium text-slate-500">Kategorie</th>
+                                <th class="px-4 py-3 text-right font-medium text-slate-500">Betrag</th>
+                                <th class="px-4 py-3 text-right font-medium text-slate-500">Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody id="all-transactions-tbody" class="bg-white divide-y divide-slate-100">
+                            <!-- Data injected here -->
+                        </tbody>
+                    </table>
+                    <div id="empty-state-transactions" class="hidden absolute inset-0 bg-white flex flex-col items-center justify-center text-slate-400 z-20">
+                        <i class="fa-solid fa-inbox text-4xl mb-3 text-slate-300"></i>
+                        <p>Keine Transaktionen gefunden.</p>
+                        <button onclick="switchTab('upload')" class="mt-4 text-primary font-medium hover:underline">Jetzt CSV importieren</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Upload View -->
         <div id="view-upload" class="hidden">
             <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-8 max-w-2xl mx-auto">
@@ -239,19 +276,26 @@
         let db = null;
         let transactions = [];
         let currentMonthFilter = 'all';
+        let currentCategoryFilter = 'all';
+        let activeTab = 'dashboard';
 
         // Tab Switching Logic
         window.switchTab = function(tabName) {
-            document.getElementById('view-dashboard').classList.add('hidden');
-            document.getElementById('view-upload').classList.add('hidden');
-            document.getElementById('tab-dashboard').className = 'tab-inactive whitespace-nowrap py-4 px-1 border-b-2 border-transparent font-medium text-sm';
-            document.getElementById('tab-upload').className = 'tab-inactive whitespace-nowrap py-4 px-1 border-b-2 border-transparent font-medium text-sm';
+            activeTab = tabName;
+            const tabs = ['dashboard', 'transactions', 'upload'];
+            
+            tabs.forEach(tab => {
+                document.getElementById('view-' + tab).classList.add('hidden');
+                document.getElementById('tab-' + tab).className = 'tab-inactive whitespace-nowrap py-4 px-1 border-b-2 border-transparent font-medium text-sm';
+            });
             
             document.getElementById('view-' + tabName).classList.remove('hidden');
             document.getElementById('tab-' + tabName).className = 'tab-active whitespace-nowrap py-4 px-1 border-b-2 border-primary font-medium text-sm';
             
             if (tabName === 'dashboard') {
                 updateDashboard();
+            } else if (tabName === 'transactions') {
+                updateTransactionsView();
             }
         };
 
@@ -306,7 +350,8 @@
                     return dateB - dateA;
                 });
                 
-                updateDashboard();
+                if (activeTab === 'dashboard') updateDashboard();
+                if (activeTab === 'transactions') updateTransactionsView();
             }, (error) => {
                 console.error("Error fetching data:", error);
             });
@@ -390,10 +435,15 @@
             });
         });
 
-        // Update Dashboard UI
+        // Update UI Logic
         window.changeMonthFilter = function(val) {
             currentMonthFilter = val;
             updateDashboard();
+        };
+
+        window.changeCategoryFilter = function(val) {
+            currentCategoryFilter = val;
+            updateTransactionsView();
         };
 
         window.deleteTransaction = async function(id) {
@@ -415,6 +465,7 @@
             return 'unknown';
         }
 
+        // Dashboard View Update
         function updateDashboard() {
             if (transactions.length === 0) {
                 document.getElementById('transactions-tbody').innerHTML = '';
@@ -535,9 +586,65 @@
                 avgTbody.appendChild(tr);
             });
 
-            // Update Charts (Ringdiagramm mit aktuellen Filterdaten, Trenddiagramm mit globalen Daten)
+            // Update Charts
             updateChart(categorySums);
             updateTrendChart(globalMonthMap);
+        }
+
+        // Transactions View Update
+        function updateTransactionsView() {
+            if (transactions.length === 0) {
+                document.getElementById('all-transactions-tbody').innerHTML = '';
+                document.getElementById('empty-state-transactions').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('empty-state-transactions').classList.add('hidden');
+
+            // Collect unique categories for dropdown
+            const categories = new Set(transactions.map(t => t.kategorie));
+            const sortedCategories = Array.from(categories).sort();
+            
+            // If current filter category was deleted/no longer exists, reset filter
+            if (currentCategoryFilter !== 'all' && !categories.has(currentCategoryFilter)) {
+                currentCategoryFilter = 'all';
+            }
+
+            // Update Dropdown Options
+            const filterSelect = document.getElementById('categoryFilter');
+            if (filterSelect) {
+                let optionsHtml = '<option value="all">Alle Kategorien</option>';
+                sortedCategories.forEach(c => {
+                    const selected = currentCategoryFilter === c ? 'selected' : '';
+                    optionsHtml += `<option value="${c}" ${selected}>${c}</option>`;
+                });
+                filterSelect.innerHTML = optionsHtml;
+            }
+
+            // Filter transactions
+            const displayTransactions = currentCategoryFilter === 'all' 
+                ? transactions 
+                : transactions.filter(t => t.kategorie === currentCategoryFilter);
+
+            // Populate Table
+            const tbody = document.getElementById('all-transactions-tbody');
+            tbody.innerHTML = '';
+
+            displayTransactions.forEach(t => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors group";
+                tr.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap text-slate-600">${t.datum}</td>
+                    <td class="px-4 py-3 text-slate-800 font-medium">${t.haendler}</td>
+                    <td class="px-4 py-3 text-slate-500">${t.kategorie}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right font-bold text-slate-800">CHF ${t.betrag.toFixed(2)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right">
+                        <button onclick="deleteTransaction('${t.id}')" class="text-slate-300 hover:text-danger transition-colors opacity-0 group-hover:opacity-100" title="Transaktion löschen">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
         }
 
         function updateChart(categorySums) {
