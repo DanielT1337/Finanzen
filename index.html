@@ -210,14 +210,7 @@
         import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Environment variables provided by the Canvas preview platform
-        const firebaseConfig = {
-  apiKey: "AIzaSyABStg7Hc0RJlbGDc2AZ0lghMsD0RIjs3M",
-  authDomain: "finanzen-3d48e.firebaseapp.com",
-  projectId: "finanzen-3d48e",
-  storageBucket: "finanzen-3d48e.firebasestorage.app",
-  messagingSenderId: "159784512921",
-  appId: "1:159784512921:web:c7d291ba52d0b65324f708"
-};
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'finanz-tracker';
         
         // Chart Instance
@@ -363,6 +356,9 @@
                         statusDiv.className = 'mt-6 p-4 rounded-lg bg-green-50 text-green-700 flex items-start';
                         statusTitle.textContent = 'Import Erfolgreich!';
                         statusMsg.textContent = `${importedCount} neue Ausgaben wurden erfolgreich importiert (Duplikate wurden übersprungen).`;
+                    } catch (error) {
+                        console.error("Error saving to db:", error);
+                        statusDiv.className = 'mt-6 p-4 rounded-lg bg-red-50 text-red-700 flex items-start';
                         statusTitle.textContent = 'Speicherfehler';
                         statusMsg.textContent = 'Die Daten konnten nicht gespeichert werden.';
                     }
