@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mein Finanz-Dashboard</title>
+    <!-- Tailwind CSS für professionelles Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js für Diagramme -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse für CSV Verarbeitung -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- FontAwesome für Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        secondary: '#475569',
+                        success: '#16a34a',
+                        danger: '#dc2626',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
+        .tab-inactive { color: #64748b; }
+        .tab-inactive:hover { color: #334155; }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fa-solid fa-wallet text-primary text-2xl mr-3"></i>
+                    <span class="font-bold text-xl tracking-tight">Cembra Finanz-Tracker</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div id="auth-status" class="text-sm text-slate-500">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> Verbinde mit Cloud...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Tabs -->
+        <div class="border-b border-slate-200 mb-8">
+            <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                    <i class="fa-solid fa-chart-pie mr-2"></i> Übersicht
+                </button>
+                <button onclick="switchTab('upload')" id="tab-upload" class="tab-inactive whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                    <i class="fa-solid fa-file-csv mr-2"></i> CSV Importieren
+                </button>
+            </nav>
+        </div>
+
+        <!-- Dashboard View -->
+        <div id="view-dashboard" class="space-y-6">
+            
+            <!-- KPIs -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-medium text-slate-500">Gesamtausgaben</h3>
+                        <i class="fa-solid fa-arrow-trend-down text-danger bg-red-50 p-2 rounded-lg"></i>
+                    </div>
+                    <p class="text-2xl font-bold text-slate-800 mt-2" id="kpi-total">CHF 0.00</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-medium text-slate-500">Ø pro Monat</h3>
+                        <i class="fa-solid fa-calendar-days text-primary bg-blue-50 p-2 rounded-lg"></i>
+                    </div>
+                    <p class="text-2xl font-bold text-slate-800 mt-2" id="kpi-avg-month">CHF 0.00</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-medium text-slate-500">Grösste Kategorie</h3>
+                        <i class="fa-solid fa-layer-group text-amber-500 bg-amber-50 p-2 rounded-lg"></i>
+                    </div>
+                    <p class="text-xl font-bold text-slate-800 mt-2 truncate" id="kpi-top-category">-</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-medium text-slate-500">Transaktionen</h3>
+                        <i class="fa-solid fa-receipt text-success bg-green-50 p-2 rounded-lg"></i>
+                    </div>
+                    <p class="text-2xl font-bold text-slate-800 mt-2" id="kpi-count">0</p>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Pie Chart -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4">Ausgaben nach Kategorie</h3>
+                    <div class="relative h-72 w-full flex justify-center">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Bar Chart -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4">Verlauf nach Monaten</h3>
+                    <div class="relative h-72 w-full flex justify-center">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tables Row -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                <!-- Category Averages -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col h-full">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4">Ø Ausgaben pro Kategorie (Monat)</h3>
+                    <div class="overflow-y-auto flex-grow h-64 border border-slate-100 rounded-lg">
+                        <table class="min-w-full divide-y divide-slate-200 text-sm">
+                            <thead class="bg-slate-50 sticky top-0">
+                                <tr>
+                                    <th class="px-4 py-3 text-left font-medium text-slate-500">Kategorie</th>
+                                    <th class="px-4 py-3 text-right font-medium text-slate-500">Ø Betrag</th>
+                                </tr>
+                            </thead>
+                            <tbody id="avg-category-tbody" class="bg-white divide-y divide-slate-100">
+                                <!-- Data injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Recent Transactions List -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col h-full">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-slate-800">Neueste Transaktionen</h3>
+                        <button onclick="clearData()" class="text-sm text-danger hover:underline">
+                            <i class="fa-solid fa-trash mr-1"></i> Daten löschen
+                        </button>
+                    </div>
+                    <div class="overflow-y-auto flex-grow h-64 border border-slate-100 rounded-lg relative">
+                        <table class="min-w-full divide-y divide-slate-200 text-sm">
+                            <thead class="bg-slate-50 sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-4 py-3 text-left font-medium text-slate-500">Datum</th>
+                                    <th class="px-4 py-3 text-left font-medium text-slate-500">Händler</th>
+                                    <th class="px-4 py-3 text-right font-medium text-slate-500">Betrag</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactions-tbody" class="bg-white divide-y divide-slate-100">
+                                <!-- Data injected here -->
+                            </tbody>
+                        </table>
+                        <div id="empty-state" class="hidden absolute inset-0 bg-white flex flex-col items-center justify-center text-slate-400 z-20">
+                            <i class="fa-solid fa-inbox text-4xl mb-3 text-slate-300"></i>
+                            <p>Noch keine Daten vorhanden.</p>
+                            <button onclick="switchTab('upload')" class="mt-4 text-primary font-medium hover:underline">Jetzt CSV importieren</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload View -->
+        <div id="view-upload" class="hidden">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-8 max-w-2xl mx-auto">
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-bold text-slate-800">CSV-Datei importieren</h2>
+                    <p class="text-slate-500 mt-2">Laden Sie die von Gemini generierte CSV-Datei hoch, um Ihre Ausgaben zu analysieren.</p>
+                </div>
+                
+                <div class="border-2 border-dashed border-slate-300 rounded-xl p-12 text-center hover:bg-slate-50 transition-colors relative">
+                    <input type="file" id="csv-file" accept=".csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    <i class="fa-solid fa-cloud-arrow-up text-5xl text-primary mb-4"></i>
+                    <p class="text-lg font-medium text-slate-700">Klicken oder Datei hier ablegen</p>
+                    <p class="text-sm text-slate-500 mt-1">Nur .csv Dateien (Trennzeichen: Semikolon)</p>
+                </div>
+                
+                <div id="upload-status" class="mt-6 hidden">
+                    <div class="p-4 rounded-lg bg-blue-50 text-blue-700 flex items-start">
+                        <i class="fa-solid fa-circle-info mt-1 mr-3"></i>
+                        <div>
+                            <p class="font-medium" id="upload-status-title">Verarbeite Datei...</p>
+                            <p class="text-sm mt-1" id="upload-status-msg"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Firebase SDK (ES Modules) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Environment variables provided by the Canvas preview platform
+        const firebaseConfig = {
+  apiKey: "AIzaSyABStg7Hc0RJlbGDc2AZ0lghMsD0RIjs3M",
+  authDomain: "finanzen-3d48e.firebaseapp.com",
+  projectId: "finanzen-3d48e",
+  storageBucket: "finanzen-3d48e.firebasestorage.app",
+  messagingSenderId: "159784512921",
+  appId: "1:159784512921:web:c7d291ba52d0b65324f708"
+};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'finanz-tracker';
+        
+        // Chart Instance
+        let categoryChartInstance = null;
+        let trendChartInstance = null;
+        
+        // State
+        let currentUser = null;
+        let db = null;
+        let transactions = [];
+
+        // Tab Switching Logic
+        window.switchTab = function(tabName) {
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-upload').classList.add('hidden');
+            document.getElementById('tab-dashboard').className = 'tab-inactive whitespace-nowrap py-4 px-1 border-b-2 border-transparent font-medium text-sm';
+            document.getElementById('tab-upload').className = 'tab-inactive whitespace-nowrap py-4 px-1 border-b-2 border-transparent font-medium text-sm';
+            
+            document.getElementById('view-' + tabName).classList.remove('hidden');
+            document.getElementById('tab-' + tabName).className = 'tab-active whitespace-nowrap py-4 px-1 border-b-2 border-primary font-medium text-sm';
+            
+            if (tabName === 'dashboard') {
+                updateDashboard();
+            }
+        };
+
+        // Initialize Firebase
+        async function initFirebase() {
+            if (!firebaseConfig) {
+                document.getElementById('auth-status').innerHTML = '<span class="text-red-500">Keine DB-Verbindung (lokaler Modus)</span>';
+                return;
+            }
+
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            db = getFirestore(app);
+
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth error:", error);
+                document.getElementById('auth-status').innerHTML = '<span class="text-red-500">Authentifizierungsfehler</span>';
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('auth-status').innerHTML = `<i class="fa-solid fa-cloud text-success"></i> Cloud synchronisiert`;
+                    loadDataFromCloud();
+                } else {
+                    currentUser = null;
+                }
+            });
+        }
+
+        // Load Data from Firestore
+        function loadDataFromCloud() {
+            if (!currentUser || !db) return;
+            
+            const transRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions');
+            
+            // Listen to real-time changes
+            onSnapshot(transRef, (snapshot) => {
+                transactions = [];
+                snapshot.forEach((doc) => {
+                    transactions.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Sort by date (descending)
+                transactions.sort((a, b) => {
+                    const dateA = a.datum ? new Date(a.datum.split('.').reverse().join('-')) : new Date(0);
+                    const dateB = b.datum ? new Date(b.datum.split('.').reverse().join('-')) : new Date(0);
+                    return dateB - dateA;
+                });
+                
+                updateDashboard();
+            }, (error) => {
+                console.error("Error fetching data:", error);
+            });
+        }
+
+        // CSV Parsing Logic
+        document.getElementById('csv-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const statusDiv = document.getElementById('upload-status');
+            const statusTitle = document.getElementById('upload-status-title');
+            const statusMsg = document.getElementById('upload-status-msg');
+            
+            statusDiv.classList.remove('hidden');
+            statusDiv.className = 'mt-6 p-4 rounded-lg bg-blue-50 text-blue-700 flex items-start';
+            statusTitle.textContent = 'Verarbeite Datei...';
+            statusMsg.textContent = 'Bitte warten Sie einen Moment.';
+
+            Papa.parse(file, {
+                header: true,
+                delimiter: ";", // Semi-colon as requested
+                skipEmptyLines: true,
+                complete: async function(results) {
+                    let importedCount = 0;
+                    const data = results.data;
+                    
+                    if (!currentUser || !db) {
+                        statusDiv.className = 'mt-6 p-4 rounded-lg bg-red-50 text-red-700 flex items-start';
+                        statusTitle.textContent = 'Fehler';
+                        statusMsg.textContent = 'Keine Verbindung zur Cloud-Datenbank.';
+                        return;
+                    }
+
+                    try {
+                        const transRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions');
+                        
+                        // Create a Set of existing transactions to prevent duplicates
+                        const existingHashes = new Set(transactions.map(t => `${t.datum}-${t.haendler}-${t.betrag}`));
+                        
+                        for (const row of data) {
+                            // Only import valid expense rows
+                            if (row['Datum'] && row['Betrag (CHF)'] && row['Typ'] === 'Ausgabe') {
+                                const amount = parseFloat(row['Betrag (CHF)']);
+                                const merchant = row['Händler / Verwendungszweck'] || 'Unbekannt';
+                                const hash = `${row['Datum']}-${merchant}-${amount}`;
+                                
+                                if (!isNaN(amount) && !existingHashes.has(hash)) {
+                                    await addDoc(transRef, {
+                                        datum: row['Datum'],
+                                        haendler: merchant,
+                                        betrag: amount,
+                                        kategorie: row['Kategorie'] || 'Sonstiges',
+                                        typ: row['Typ'],
+                                        importDate: new Date().toISOString()
+                                    });
+                                    importedCount++;
+                                    existingHashes.add(hash); // Add to set to prevent duplicates within same file
+                                }
+                            }
+                        }
+                        
+                        statusDiv.className = 'mt-6 p-4 rounded-lg bg-green-50 text-green-700 flex items-start';
+                        statusTitle.textContent = 'Import Erfolgreich!';
+                        statusMsg.textContent = `${importedCount} neue Ausgaben wurden erfolgreich importiert (Duplikate wurden übersprungen).`;
+                        statusTitle.textContent = 'Speicherfehler';
+                        statusMsg.textContent = 'Die Daten konnten nicht gespeichert werden.';
+                    }
+                    
+                    // Reset input
+                    e.target.value = '';
+                },
+                error: function(error) {
+                    statusDiv.className = 'mt-6 p-4 rounded-lg bg-red-50 text-red-700 flex items-start';
+                    statusTitle.textContent = 'Formatfehler';
+                    statusMsg.textContent = 'Die CSV-Datei konnte nicht gelesen werden. Bitte prüfen Sie das Format.';
+                }
+            });
+        });
+
+        // Update Dashboard UI
+        function updateDashboard() {
+            if (transactions.length === 0) {
+                document.getElementById('transactions-tbody').innerHTML = '';
+                document.getElementById('avg-category-tbody').innerHTML = '';
+                document.getElementById('empty-state').classList.remove('hidden');
+                document.getElementById('kpi-total').textContent = 'CHF 0.00';
+                document.getElementById('kpi-avg-month').textContent = 'CHF 0.00';
+                document.getElementById('kpi-top-category').textContent = '-';
+                document.getElementById('kpi-count').textContent = '0';
+                if(categoryChartInstance) categoryChartInstance.destroy();
+                if(trendChartInstance) trendChartInstance.destroy();
+                return;
+            }
+            
+            document.getElementById('empty-state').classList.add('hidden');
+
+            let totalExpense = 0;
+            const categorySums = {};
+            const monthMap = {};
+
+            // Table UI
+            const tbody = document.getElementById('transactions-tbody');
+            tbody.innerHTML = '';
+
+            transactions.forEach((t, index) => {
+                totalExpense += t.betrag;
+                
+                // Aggregate for chart
+                if(categorySums[t.kategorie]) {
+                    categorySums[t.kategorie] += t.betrag;
+                } else {
+                    categorySums[t.kategorie] = t.betrag;
+                }
+                
+                // Aggregate by month (YYYY-MM)
+                const parts = t.datum.split('.');
+                if(parts.length === 3) {
+                    const monthKey = `${parts[2]}-${parts[1]}`;
+                    if(!monthMap[monthKey]) monthMap[monthKey] = 0;
+                    monthMap[monthKey] += t.betrag;
+                }
+
+                // Add to table (show only latest 50 for performance)
+                if (index < 50) {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-slate-50 transition-colors";
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 whitespace-nowrap text-slate-600">${t.datum}</td>
+                        <td class="px-4 py-3 text-slate-800 font-medium">
+                            ${t.haendler}
+                            <div class="text-xs text-slate-400 font-normal">${t.kategorie}</div>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-right font-bold text-slate-800">CHF ${t.betrag.toFixed(2)}</td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            });
+            
+            // Calculate Months for Averages
+            const uniqueMonths = Object.keys(monthMap).length || 1;
+
+            // Update KPIs
+            document.getElementById('kpi-total').textContent = `CHF ${totalExpense.toFixed(2)}`;
+            document.getElementById('kpi-avg-month').textContent = `CHF ${(totalExpense / uniqueMonths).toFixed(2)}`;
+            document.getElementById('kpi-count').textContent = transactions.length;
+
+            // Find top category
+            let topCat = '-';
+            let topCatVal = 0;
+            for (const [cat, val] of Object.entries(categorySums)) {
+                if (val > topCatVal) {
+                    topCatVal = val;
+                    topCat = cat;
+                }
+            }
+            document.getElementById('kpi-top-category').textContent = topCat;
+            
+            // Populate Averages Table
+            const avgTbody = document.getElementById('avg-category-tbody');
+            avgTbody.innerHTML = '';
+            
+            // Sort categories by amount descending
+            const sortedCategories = Object.entries(categorySums).sort((a, b) => b[1] - a[1]);
+            
+            sortedCategories.forEach(([cat, total]) => {
+                const avg = total / uniqueMonths;
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="px-4 py-3 text-slate-800 font-medium">${cat}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right font-bold text-slate-800">CHF ${avg.toFixed(2)}</td>
+                `;
+                avgTbody.appendChild(tr);
+            });
+
+            // Update Charts
+            updateChart(categorySums);
+            updateTrendChart(monthMap);
+        }
+
+        function updateChart(categorySums) {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            
+            if (categoryChartInstance) {
+                categoryChartInstance.destroy();
+            }
+
+            const labels = Object.keys(categorySums);
+            const data = Object.values(categorySums);
+            
+            // Professional color palette
+            const colors = [
+                '#3b82f6', '#10b981', '#f59e0b', '#ef4444', 
+                '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'
+            ];
+
+            categoryChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {
+                        padding: 20
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { family: 'Inter', size: 12 },
+                                color: '#475569',
+                                usePointStyle: true,
+                                padding: 15
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) label += ': ';
+                                    if (context.parsed !== null) {
+                                        label += 'CHF ' + context.parsed.toFixed(2);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        function updateTrendChart(monthMap) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            if (trendChartInstance) {
+                trendChartInstance.destroy();
+            }
+
+            // Sort months chronologically
+            const labels = Object.keys(monthMap).sort();
+            const data = labels.map(month => monthMap[month]);
+            
+            // Format labels for display (YYYY-MM -> MM.YYYY)
+            const displayLabels = labels.map(l => {
+                const parts = l.split('-');
+                return `${parts[1]}.${parts[0]}`;
+            });
+
+            trendChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: displayLabels,
+                    datasets: [{
+                        label: 'Ausgaben (CHF)',
+                        data: data,
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'CHF ' + context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: '#f1f5f9'
+                            },
+                            ticks: {
+                                color: '#64748b'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#64748b'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Function to clear data (attached to window for HTML access)
+        window.clearData = async function() {
+            if (!currentUser || !db) return;
+            if (confirm("Möchten Sie wirklich alle importierten Daten löschen?")) {
+                try {
+                    const transRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions');
+                    // In a production app, batch delete is better. For this prototype, we'll delete one by one.
+                    for (const t of transactions) {
+                        await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'transactions', t.id));
+                    }
+                } catch (error) {
+                    console.error("Fehler beim Löschen:", error);
+                }
+            }
+        }
+
+        // Start App
+        initFirebase();
+
+    </script>
+</body>
+</html>
